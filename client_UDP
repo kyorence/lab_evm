@@ -1,0 +1,85 @@
+#include <stdio.h>
+#include <string.h>
+#include <winsock2.h>
+#include <windows.h>
+#pragma comment(lib, "ws2_32.lib")
+#define PORT 444
+#define BUFFER_SIZE 1024
+
+int main(int argc, char* argv[])
+{
+    WSADATA wsaData;
+    SOCKET udpSocket;
+    sockaddr_in serverAddr;
+    char buffer[BUFFER_SIZE];
+
+    printf("UDP CLIENT DEMO\n");
+
+    printf("IP Server: ");
+    fgets(buffer, sizeof(buffer) - 1, stdin);
+    
+    buffer[strcspn(buffer, "\n")] = 0; // Удаление символа новой строки из строки
+
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        printf("Error WSAStartup %d\n", WSAGetLastError());
+        return -1;
+    }
+
+    udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (udpSocket == INVALID_SOCKET)
+    {
+        printf("Error creating socket %d\n", WSAGetLastError());
+        WSACleanup();
+        return -1;
+    }
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(PORT);
+    
+    if (inet_addr(buffer) != INADDR_NONE)
+        serverAddr.sin_addr.s_addr = inet_addr(buffer);
+    else 
+    {
+        printf("Invalid address %s\n", buffer);
+        closesocket(udpSocket);
+        WSACleanup();
+        return -1;
+    }
+
+    printf("Соединение с %s успешно установлено\nType 'exit' to quit\n\n", buffer);
+
+    while (1)
+    {
+        printf("S<=C: ");
+        fgets(buffer, sizeof(buffer) - 1, stdin);
+
+        if (!strcmp(buffer, "exit\n"))
+        {
+            sendto(udpSocket, buffer, strlen(buffer), 0,
+                   (sockaddr*)&serverAddr, sizeof(serverAddr));
+            break;
+        }
+       
+        sendto(udpSocket, buffer, strlen(buffer), 0,
+               (sockaddr*)&serverAddr, sizeof(serverAddr));
+
+        sockaddr_in fromAddr;
+        int fromSize = sizeof(fromAddr);
+
+        int recvLen = recvfrom(udpSocket, buffer, BUFFER_SIZE - 1, 0,
+                               (sockaddr*)&fromAddr, &fromSize);
+       
+        if (recvLen == SOCKET_ERROR)
+            break;
+
+        buffer[recvLen] = '\0';
+       
+        printf("C=>S: %s", buffer);
+    }
+   
+    printf("Выход...\n");
+    closesocket(udpSocket);
+    WSACleanup();
+    return 0;
+}
